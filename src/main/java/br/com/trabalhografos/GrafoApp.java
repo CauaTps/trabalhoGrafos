@@ -28,6 +28,7 @@ import javafx.stage.Stage;
 import java.io.File;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,10 +42,22 @@ public class GrafoApp extends Application {
     private Pane areaGrafo;
     private TextArea resultado;
     private Button analisar;
+    private Button colorir;
     private boolean exemploLoja;
     private String[] nomes = {"Tela da loja", "Carrinho", "Catalogo", "Pedidos",
             "Estoque", "Pagamentos", "Cartao", "Antifraude"};
     private Map<String, Point2D> posicoes = new HashMap<>();
+    private Map<String, Integer> coresVertices = new HashMap<>();
+    private Color[] paletaCores = {
+            Color.web("#bfdbfe"),
+            Color.web("#bbf7d0"),
+            Color.web("#fde68a"),
+            Color.web("#e9d5ff"),
+            Color.web("#fecaca"),
+            Color.web("#a7f3d0"),
+            Color.web("#fbcfe8"),
+            Color.web("#c7d2fe")
+    };
 
     @Override
     public void start(Stage stage) {
@@ -72,7 +85,7 @@ public class GrafoApp extends Application {
         titulo.setFont(Font.font("Arial", FontWeight.BOLD, 25));
         titulo.setTextFill(Color.WHITE);
 
-        Label subtitulo = new Label("Identificacao de modulos criticos por pontos de articulacao");
+        Label subtitulo = new Label("Pontos de articulacao e coloracao para distribuicao de tarefas");
         subtitulo.setFont(Font.font("Arial", 14));
         subtitulo.setTextFill(Color.web("#dbeafe"));
 
@@ -134,14 +147,33 @@ public class GrafoApp extends Application {
         analisar = new Button("Pontos de articulacao");
         analisar.setMaxWidth(Double.MAX_VALUE);
         analisar.setDisable(true);
+        analisar.setStyle(
+                "-fx-background-color: #1e3a5f;" +
+                "-fx-text-fill: white;" +
+                "-fx-font-weight: bold;" +
+                "-fx-background-radius: 7;" +
+                "-fx-padding: 10 14;"
+        );
         analisar.setOnAction(event -> executarArticulacao());
+
+        colorir = new Button("Colorir tarefas");
+        colorir.setMaxWidth(Double.MAX_VALUE);
+        colorir.setDisable(true);
+        colorir.setStyle(
+                "-fx-background-color: #15803d;" +
+                "-fx-text-fill: white;" +
+                "-fx-font-weight: bold;" +
+                "-fx-background-radius: 7;" +
+                "-fx-padding: 10 14;"
+        );
+        colorir.setOnAction(event -> executarColoracao());
 
         resultado = new TextArea();
         resultado.setEditable(false);
         resultado.setWrapText(true);
         resultado.setPrefRowCount(15);
         resultado.setStyle("-fx-font-family: Consolas; -fx-font-size: 12px;");
-        resultado.setPromptText("O resultado da DFS aparece aqui.");
+        resultado.setPromptText("Os resultados das analises aparecem aqui.");
 
         VBox painel = new VBox(
                 14,
@@ -152,6 +184,7 @@ public class GrafoApp extends Application {
                 nomeArquivo,
                 quantidadeVertices,
                 analisar,
+                colorir,
                 resultado
         );
         painel.setPrefWidth(390);
@@ -246,15 +279,18 @@ public class GrafoApp extends Application {
     private void carregarArquivo(File arquivo) {
 
         exemploLoja = false;
+        coresVertices.clear();
         try {
             lista = new ListaA(arquivo);
             exemploLoja = conferirExemplo();
             resultado.clear();
             analisar.setDisable(false);
+            colorir.setDisable(false);
             if (exemploLoja) resultado.setText(
                     "EXEMPLO FICTICIO: SISTEMA DE LOJA\n\n" +
                     "Cada vertice é um modulo. As ligacoes representam integracoes.\n\n" +
-                    "Articulacao: quais modulos separam partes do grafo ao serem removidos?\n\n" +
+                    "Articulacao: quais modulos separam partes do grafo ao serem removidos?\n" +
+                    "Coloracao: quais modulos podem ficar no mesmo grupo de tarefas?\n\n" +
                     "A analise representa este modelo, nao todos os efeitos de uma falha real.");
 
             nomeArquivo.setText(arquivo.getName());
@@ -269,6 +305,7 @@ public class GrafoApp extends Application {
             lista = null;
             resultado.clear();
             analisar.setDisable(true);
+            colorir.setDisable(true);
             nomeArquivo.setText("Nenhum arquivo selecionado");
             listaAdjacencia.getItems().clear();
             areaGrafo.getChildren().clear();
@@ -348,6 +385,49 @@ public class GrafoApp extends Application {
         } catch (IllegalArgumentException erro) {
             resultado.setText(erro.getMessage());
             mensagem.setText("Confira o arquivo antes de executar a analise.");
+        }
+    }
+
+    private void executarColoracao() {
+        try {
+            ColoracaoTarefas algoritmo = new ColoracaoTarefas(lista);
+            coresVertices.clear();
+            coresVertices.putAll(algoritmo.colorir());
+
+            Map<Integer, List<String>> grupos = algoritmo.agruparPorCor(coresVertices);
+            String texto = "Coloracao para distribuicao de tarefas\n\n" +
+                    "Tarefas no mesmo grupo nao possuem ligacao direta no grafo.\n" +
+                    "Assim, podem ser planejadas para execucao simultanea.\n\n";
+
+            for (Integer grupo : grupos.keySet()) {
+                texto = texto + "Grupo " + grupo + ": ";
+                List<String> vertices = grupos.get(grupo);
+
+                for (int i = 0; i < vertices.size(); i++) {
+                    if (i > 0) {
+                        texto = texto + ", ";
+                    }
+                    texto = texto + nomeModulo(vertices.get(i));
+                }
+
+                texto = texto + "\n";
+            }
+
+            texto = texto + "\nTotal de grupos: " + grupos.size();
+
+            if (exemploLoja) {
+                texto = texto + "\n\nINTERPRETACAO\n" +
+                        "Cada grupo representa modulos sem integracao direta entre si.\n" +
+                        "Em um planejamento, tarefas do mesmo grupo tendem a ter menos conflito direto.";
+            }
+
+            resultado.setText(texto);
+            mensagem.setText("Coloracao concluida. Cores iguais = mesmo grupo de tarefas.");
+            desenharGrafo();
+
+        } catch (IllegalArgumentException erro) {
+            resultado.setText(erro.getMessage());
+            mensagem.setText("Confira o arquivo antes de executar a coloracao.");
         }
     }
 
@@ -433,8 +513,7 @@ public class GrafoApp extends Application {
         Point2D ponto = posicoes.get(vertice.getRotulo());
 
         Circle circulo = new Circle(22);
-        circulo.setFill(Color.WHITE);
-        if (vertice.isArticulacao()) circulo.setFill(Color.web("#fed7aa"));
+        circulo.setFill(corPreenchimento(vertice));
         circulo.setStroke(Color.web("#2563eb"));
 
         if (vertice.isArticulacao()) circulo.setStroke(Color.web("#b91c1c"));
@@ -465,6 +544,14 @@ public class GrafoApp extends Application {
             dados.setMouseTransparent(true);
             grupo.getChildren().add(dados);
         }
+        if (coresVertices.containsKey(vertice.getRotulo())) {
+            Text grupoCor = new Text("grupo " + coresVertices.get(vertice.getRotulo()));
+            grupoCor.setFont(Font.font("Arial", FontWeight.BOLD, 11));
+            grupoCor.setX(-grupoCor.getLayoutBounds().getWidth() / 2);
+            grupoCor.setY(vertice.isVisitado() ? 53 : 38);
+            grupoCor.setMouseTransparent(true);
+            grupo.getChildren().add(grupoCor);
+        }
         grupo.setLayoutX(ponto.getX());
         grupo.setLayoutY(ponto.getY());
 
@@ -490,6 +577,28 @@ public class GrafoApp extends Application {
     private String nomeModulo(Vertice v) {
         if (exemploLoja) return v.getRotulo() + " - " + nomes[Integer.parseInt(v.getRotulo()) - 1];
         return v.getRotulo();
+    }
+
+    private String nomeModulo(String rotulo) {
+        Vertice vertice = lista.buscarVertice(rotulo);
+        if (vertice == null) {
+            return rotulo;
+        }
+        return nomeModulo(vertice);
+    }
+
+    private Color corPreenchimento(Vertice vertice) {
+        Integer cor = coresVertices.get(vertice.getRotulo());
+
+        if (cor != null) {
+            return paletaCores[(cor - 1) % paletaCores.length];
+        }
+
+        if (vertice.isArticulacao()) {
+            return Color.web("#fed7aa");
+        }
+
+        return Color.WHITE;
     }
 
     private boolean conferirExemplo() {
