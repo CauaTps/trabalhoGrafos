@@ -90,7 +90,7 @@ public class PontoArticulacao {
         }
     }
 
-    private void validarGrafo() {
+    public void validarGrafo() {
         //esse algoritmo usa grafo simples nao orientado e rotulos numericos
         for (int i = 0; i < lista.getVertices().size(); i++) {
             Vertice v = lista.getVertices().get(i);
