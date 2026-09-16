@@ -28,7 +28,7 @@ public class PontoArticulacao {
         }
 
         //procura o menor vertice que ainda nao foi visitado
-        //na primeira vez vai pegar o vertice 1
+        //começa pelo menor numero ou pela primeira letra em ordem alfabetica
         Vertice vertice = buscarMenorVerticeNaoVisitado();
 
         //depois que terminar uma parte do grafo ele procura se ficou algum sem visitar
@@ -91,14 +91,9 @@ public class PontoArticulacao {
     }
 
     public void validarGrafo() {
-        //esse algoritmo usa grafo simples nao orientado e rotulos numericos
+        //esse algoritmo usa grafo simples nao orientado, com numeros ou letras
         for (int i = 0; i < lista.getVertices().size(); i++) {
             Vertice v = lista.getVertices().get(i);
-            try {
-                Integer.parseInt(v.getRotulo());
-            } catch (NumberFormatException erro) {
-                throw new IllegalArgumentException("Use numeros inteiros nos rotulos dos vertices.");
-            }
             for (int j = 0; j < i; j++) {
                 if (lista.getVertices().get(j).getRotulo().equalsIgnoreCase(v.getRotulo())) {
                     throw new IllegalArgumentException("Vertice repetido: " + v.getRotulo());
@@ -139,9 +134,9 @@ public class PontoArticulacao {
             if (!atual.isVisitado()) {
 
                 //se ainda nao tinha encontrado nenhum ele ja vira o menor
-                //se tinha encontrado compara os numeros para ficar com o menor deles
-                if (menorVertice == null || Integer.parseInt(atual.getRotulo())
-                        < Integer.parseInt(menorVertice.getRotulo())) {
+                //se tinha encontrado compara os rotulos para ficar com o menor deles
+                if (menorVertice == null || lista.compararRotulos(atual.getRotulo(),
+                        menorVertice.getRotulo()) < 0) {
                     menorVertice = atual;
                 }
             }
@@ -168,9 +163,9 @@ public class PontoArticulacao {
             //so pode escolher esse vizinho se ele existe e ainda nao foi visitado
             if (vizinho != null && !vizinho.isVisitado()) {
 
-                //compara os rotulos como numeros e guarda sempre o menor vizinho
-                if (menorVizinho == null || Integer.parseInt(vizinho.getRotulo())
-                        < Integer.parseInt(menorVizinho.getRotulo())) {
+                //compara numeros em ordem crescente e letras em ordem alfabetica
+                if (menorVizinho == null || lista.compararRotulos(vizinho.getRotulo(),
+                        menorVizinho.getRotulo()) < 0) {
                     menorVizinho = vizinho;
                 }
             }

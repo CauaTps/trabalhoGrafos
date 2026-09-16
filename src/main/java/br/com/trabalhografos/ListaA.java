@@ -145,4 +145,32 @@ public class ListaA {
     public ArrayList<Vertice> getVertices() {
         return vertices;
     }
+
+    public int compararRotulos(String primeiro, String segundo) {
+
+        //confere se cada rotulo é um numero inteiro ou um texto
+        boolean primeiroNumero = primeiro.matches("[+-]?[0-9]+");
+        boolean segundoNumero = segundo.matches("[+-]?[0-9]+");
+
+        if (primeiroNumero && segundoNumero) {
+            //compara pelo valor, assim o 2 vem antes do 10
+            //BigInteger tambem aceita numeros que nao cabem em um int
+            int resultado = new java.math.BigInteger(primeiro)
+                    .compareTo(new java.math.BigInteger(segundo));
+            if (resultado != 0) {
+                return resultado;
+            }
+        }
+
+        //se misturar numeros e letras, os numeros ficam primeiro
+        if (primeiroNumero && !segundoNumero) {
+            return -1;
+        }
+        if (!primeiroNumero && segundoNumero) {
+            return 1;
+        }
+
+        //para letras usa ordem alfabetica, sem diferenciar maiuscula e minuscula
+        return primeiro.compareToIgnoreCase(segundo);
+    }
 }

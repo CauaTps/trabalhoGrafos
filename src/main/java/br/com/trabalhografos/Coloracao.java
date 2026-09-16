@@ -7,11 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class ColoracaoTarefas {
+public class Coloracao {
 
     private ListaA lista;
 
-    public ColoracaoTarefas(ListaA lista) {
+    public Coloracao(ListaA lista) {
         this.lista = lista;
     }
 
@@ -25,7 +25,7 @@ public class ColoracaoTarefas {
             if (diferencaGrau != 0) {
                 return diferencaGrau;
             }
-            return compararRotulos(v1.getRotulo(), v2.getRotulo());
+            return lista.compararRotulos(v1.getRotulo(), v2.getRotulo());
         });
 
         Map<String, Integer> coresCalculadas = new LinkedHashMap<>();
@@ -95,14 +95,6 @@ public class ColoracaoTarefas {
         }
 
         return grau;
-    }
-
-    private int compararRotulos(String primeiro, String segundo) {
-        try {
-            return Integer.compare(Integer.parseInt(primeiro), Integer.parseInt(segundo));
-        } catch (NumberFormatException erro) {
-            return primeiro.compareToIgnoreCase(segundo);
-        }
     }
 
     private void validarGrafo() {

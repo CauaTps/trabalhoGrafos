@@ -43,9 +43,7 @@ public class GrafoApp extends Application {
     private TextArea resultado;
     private Button analisar;
     private Button colorir;
-    private boolean exemploLoja;
-    private String[] nomes = {"Tela da loja", "Carrinho", "Catalogo", "Pedidos",
-            "Estoque", "Pagamentos", "Cartao", "Antifraude"};
+    private boolean mostrarArticulacao;
     private Map<String, Point2D> posicoes = new HashMap<>();
     private Map<String, Integer> coresVertices = new HashMap<>();
     private Color[] paletaCores = {
@@ -81,11 +79,11 @@ public class GrafoApp extends Application {
 
     private VBox criarCabecalho() {
 
-        Label titulo = new Label("Analise de Estruturas de Software");
+        Label titulo = new Label("Analise de Grafos");
         titulo.setFont(Font.font("Arial", FontWeight.BOLD, 25));
         titulo.setTextFill(Color.WHITE);
 
-        Label subtitulo = new Label("Pontos de articulacao e coloracao para distribuicao de tarefas");
+        Label subtitulo = new Label("Pontos de articulacao e coloracao de vertices");
         subtitulo.setFont(Font.font("Arial", 14));
         subtitulo.setTextFill(Color.web("#dbeafe"));
 
@@ -116,7 +114,7 @@ public class GrafoApp extends Application {
 
         Label explicacao = new Label(
                 "A primeira linha lista todos os vertices. Nas demais linhas, " +
-                "o primeiro numero é o vertice e os seguintes sao seus vizinhos."
+                "o primeiro rotulo (numero ou letra) é o vertice e os seguintes sao seus vizinhos."
         );
         explicacao.setWrapText(true);
         explicacao.setTextFill(Color.web("#475569"));
@@ -156,7 +154,7 @@ public class GrafoApp extends Application {
         );
         analisar.setOnAction(event -> executarArticulacao());
 
-        colorir = new Button("Colorir tarefas");
+        colorir = new Button("Coloracao");
         colorir.setMaxWidth(Double.MAX_VALUE);
         colorir.setDisable(true);
         colorir.setStyle(
@@ -206,7 +204,7 @@ public class GrafoApp extends Application {
         Label titulo = new Label("Representacao do grafo");
         titulo.setFont(Font.font("Arial", FontWeight.BOLD, 17));
 
-        Label explicacao = new Label("Ligacao = integracao entre modulos (sem direcao). Borda vermelha = modulo critico.\n" +
+        Label explicacao = new Label("Grafo nao orientado. Execute um algoritmo para visualizar seu resultado.\n" +
                 "Arraste os circulos para organizar.");
         explicacao.setWrapText(true);
         explicacao.setTextFill(Color.web("#64748b"));
@@ -278,20 +276,13 @@ public class GrafoApp extends Application {
 
     private void carregarArquivo(File arquivo) {
 
-        exemploLoja = false;
+        mostrarArticulacao = false;
         coresVertices.clear();
         try {
             lista = new ListaA(arquivo);
-            exemploLoja = conferirExemplo();
             resultado.clear();
             analisar.setDisable(false);
             colorir.setDisable(false);
-            if (exemploLoja) resultado.setText(
-                    "EXEMPLO FICTICIO: SISTEMA DE LOJA\n\n" +
-                    "Cada vertice é um modulo. As ligacoes representam integracoes.\n\n" +
-                    "Articulacao: quais modulos separam partes do grafo ao serem removidos?\n" +
-                    "Coloracao: quais modulos podem ficar no mesmo grupo de tarefas?\n\n" +
-                    "A analise representa este modelo, nao todos os efeitos de uma falha real.");
 
             nomeArquivo.setText(arquivo.getName());
             quantidadeVertices.setText("Vertices: " + lista.getVertices().size());
@@ -328,7 +319,7 @@ public class GrafoApp extends Application {
         for (int i = 0; i < lista.getVertices().size(); i++) {
 
             Vertice vertice = lista.getVertices().get(i);
-            String linha = nomeModulo(vertice);
+            String linha = vertice.getRotulo();
             Aresta aresta = vertice.getInicio();
 
             while (aresta != null) {
@@ -345,10 +336,20 @@ public class GrafoApp extends Application {
         }
     }
 
+    private void limparVisualizacao() {
+        //mostra so o algoritmo escolhido, sem misturar os resultados no desenho
+        mostrarArticulacao = false;
+        coresVertices.clear();
+        resultado.clear();
+        desenharGrafo();
+    }
+
     private void executarArticulacao() {
+        limparVisualizacao();
         try {
             PontoArticulacao algoritmo = new PontoArticulacao(lista);
             algoritmo.visitaVertices();
+            mostrarArticulacao = true;
 
             String pontos = "";
             String ordem = "";
@@ -370,16 +371,11 @@ public class GrafoApp extends Application {
                         v.getRotulo(), v.getPrenum(), v.getMenor(), pai);
                 if (v.isArticulacao()) {
                     if (!pontos.isEmpty()) pontos = pontos + ", ";
-                    pontos = pontos + nomeModulo(v);
+                    pontos = pontos + v.getRotulo();
                 }
             }
             if (pontos.isEmpty()) pontos = "Nenhum";
             resultado.setText("Pontos: " + pontos + "\n\nOrdem da DFS:\n" + ordem + "\n\n" + tabela);
-            if (exemploLoja) resultado.appendText("\nINTERPRETACAO\n" +
-                    "Sem 4 - Pedidos: {Tela da loja, Carrinho, Catalogo, Estoque} ficam separados de " +
-                    "{Pagamentos, Cartao, Antifraude}.\n\n" +
-                    "Sem 6 - Pagamentos: {Cartao, Antifraude} ficam separados do restante.\n\n" +
-                    "Esses modulos merecem atencao nos testes, na manutencao e nas alternativas de integracao.");
             mensagem.setText("Analise concluida. Borda vermelha = ponto de articulacao.");
             desenharGrafo();
         } catch (IllegalArgumentException erro) {
@@ -389,40 +385,36 @@ public class GrafoApp extends Application {
     }
 
     private void executarColoracao() {
+        limparVisualizacao();
         try {
-            ColoracaoTarefas algoritmo = new ColoracaoTarefas(lista);
+            Coloracao algoritmo = new Coloracao(lista);
             coresVertices.clear();
             coresVertices.putAll(algoritmo.colorir());
 
             Map<Integer, List<String>> grupos = algoritmo.agruparPorCor(coresVertices);
-            String texto = "Coloracao para distribuicao de tarefas\n\n" +
-                    "Tarefas no mesmo grupo nao possuem ligacao direta no grafo.\n" +
-                    "Assim, podem ser planejadas para execucao simultanea.\n\n";
+            String texto = "Coloracao dos vertices\n\n" +
+                    "Vertices da mesma cor nao possuem aresta entre si.\n" +
+                    "O algoritmo guloso nao garante o menor numero de cores.\n\n";
 
             for (Integer grupo : grupos.keySet()) {
-                texto = texto + "Grupo " + grupo + ": ";
+                texto = texto + "Cor " + grupo + ": ";
                 List<String> vertices = grupos.get(grupo);
 
                 for (int i = 0; i < vertices.size(); i++) {
                     if (i > 0) {
                         texto = texto + ", ";
                     }
-                    texto = texto + nomeModulo(vertices.get(i));
+                    texto = texto + vertices.get(i);
                 }
 
                 texto = texto + "\n";
             }
 
-            texto = texto + "\nTotal de grupos: " + grupos.size();
+            texto = texto + "\nTotal de cores utilizadas: " + grupos.size();
 
-            if (exemploLoja) {
-                texto = texto + "\n\nINTERPRETACAO\n" +
-                        "Cada grupo representa modulos sem integracao direta entre si.\n" +
-                        "Em um planejamento, tarefas do mesmo grupo tendem a ter menos conflito direto.";
-            }
 
             resultado.setText(texto);
-            mensagem.setText("Coloracao concluida. Cores iguais = mesmo grupo de tarefas.");
+            mensagem.setText("Coloracao concluida. Cada numero identifica uma cor.");
             desenharGrafo();
 
         } catch (IllegalArgumentException erro) {
@@ -516,7 +508,7 @@ public class GrafoApp extends Application {
         circulo.setFill(corPreenchimento(vertice));
         circulo.setStroke(Color.web("#2563eb"));
 
-        if (vertice.isArticulacao()) circulo.setStroke(Color.web("#b91c1c"));
+        if (mostrarArticulacao && vertice.isArticulacao()) circulo.setStroke(Color.web("#b91c1c"));
         circulo.setStrokeWidth(3);
 
         Text rotulo = new Text(vertice.getRotulo());
@@ -528,15 +520,7 @@ public class GrafoApp extends Application {
 
         Group grupo = new Group(circulo, rotulo);
 
-        if (exemploLoja) {
-            Text nome = new Text(nomeModulo(vertice));
-            nome.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-            nome.setX(-nome.getLayoutBounds().getWidth() / 2);
-            nome.setY(-32);
-            nome.setMouseTransparent(true);
-            grupo.getChildren().add(nome);
-        }
-        if (vertice.isVisitado()) {
+        if (mostrarArticulacao && vertice.isVisitado()) {
             Text dados = new Text("pre: " + vertice.getPrenum() + " | menor: " + vertice.getMenor());
             dados.setFont(Font.font("Arial", 11));
             dados.setX(-dados.getLayoutBounds().getWidth() / 2);
@@ -545,10 +529,10 @@ public class GrafoApp extends Application {
             grupo.getChildren().add(dados);
         }
         if (coresVertices.containsKey(vertice.getRotulo())) {
-            Text grupoCor = new Text("grupo " + coresVertices.get(vertice.getRotulo()));
+            Text grupoCor = new Text("cor " + coresVertices.get(vertice.getRotulo()));
             grupoCor.setFont(Font.font("Arial", FontWeight.BOLD, 11));
             grupoCor.setX(-grupoCor.getLayoutBounds().getWidth() / 2);
-            grupoCor.setY(vertice.isVisitado() ? 53 : 38);
+            grupoCor.setY(38);
             grupoCor.setMouseTransparent(true);
             grupo.getChildren().add(grupoCor);
         }
@@ -574,19 +558,6 @@ public class GrafoApp extends Application {
         launch(args);
     }
 
-    private String nomeModulo(Vertice v) {
-        if (exemploLoja) return v.getRotulo() + " - " + nomes[Integer.parseInt(v.getRotulo()) - 1];
-        return v.getRotulo();
-    }
-
-    private String nomeModulo(String rotulo) {
-        Vertice vertice = lista.buscarVertice(rotulo);
-        if (vertice == null) {
-            return rotulo;
-        }
-        return nomeModulo(vertice);
-    }
-
     private Color corPreenchimento(Vertice vertice) {
         Integer cor = coresVertices.get(vertice.getRotulo());
 
@@ -594,30 +565,11 @@ public class GrafoApp extends Application {
             return paletaCores[(cor - 1) % paletaCores.length];
         }
 
-        if (vertice.isArticulacao()) {
+        if (mostrarArticulacao && vertice.isArticulacao()) {
             return Color.web("#fed7aa");
         }
 
         return Color.WHITE;
-    }
-
-    private boolean conferirExemplo() {
-        //so associa os nomes da loja quando o arquivo representa esse mesmo exemplo
-        String[] vizinhos = {"2 3", "1 4 5", "1 4", "2 3 5 6", "2 4", "4 7 8", "6 8", "6 7"};
-        if (lista.getVertices().size() != 8) return false;
-        for (int i = 1; i <= 8; i++) {
-            Vertice v = lista.buscarVertice("" + i);
-            if (v == null) return false;
-            Set<String> encontrados = new HashSet<>();
-            Aresta a = v.getInicio();
-            while (a != null) {
-                if (!encontrados.add(a.getDestino())) return false;
-                a = a.getProx();
-            }
-            Set<String> esperados = new HashSet<>(java.util.Arrays.asList(vizinhos[i - 1].split(" ")));
-            if (!encontrados.equals(esperados)) return false;
-        }
-        return true;
     }
 
 }
