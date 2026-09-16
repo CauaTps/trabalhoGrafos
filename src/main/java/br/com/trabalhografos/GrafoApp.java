@@ -10,6 +10,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -26,6 +27,7 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -43,6 +45,14 @@ public class GrafoApp extends Application {
     private TextArea resultado;
     private Button analisar;
     private Button colorir;
+    private Button proximaEtapa;
+    private Button reiniciarEtapas;
+    private Label explicacaoEtapa;
+    private Label contadorEtapas;
+    private ArrayList<EtapaAlgoritmo> etapas = new ArrayList<>();
+    private int indiceEtapa = -1;
+    private EtapaAlgoritmo etapaAtual;
+    private String resumoFinal = "";
     private boolean mostrarArticulacao;
     private Map<String, Point2D> posicoes = new HashMap<>();
     private Map<String, Integer> coresVertices = new HashMap<>();
@@ -63,7 +73,12 @@ public class GrafoApp extends Application {
         BorderPane raiz = new BorderPane();
 
         raiz.setTop(criarCabecalho());
-        raiz.setCenter(criarConteudo(stage));
+        //em uma janela menor permite rolar sem esconder os controles
+        ScrollPane conteudo = new ScrollPane(criarConteudo(stage));
+        conteudo.setFitToWidth(true);
+        conteudo.setFitToHeight(true);
+        conteudo.setStyle("-fx-background-color: transparent; -fx-background: #f4f6f8;");
+        raiz.setCenter(conteudo);
         raiz.setBottom(criarRodape());
         raiz.setStyle("-fx-background-color: #f4f6f8;");
 
@@ -71,8 +86,8 @@ public class GrafoApp extends Application {
 
         stage.setTitle("Trabalho de Grafos");
         stage.setScene(scene);
-        stage.setMinWidth(720);
-        stage.setMinHeight(500);
+        stage.setMinWidth(1000);
+        stage.setMinHeight(740);
         stage.setMaximized(true);
         stage.show();
     }
@@ -170,11 +185,11 @@ public class GrafoApp extends Application {
         resultado.setEditable(false);
         resultado.setWrapText(true);
         resultado.setPrefRowCount(15);
-        resultado.setStyle("-fx-font-family: Consolas; -fx-font-size: 12px;");
-        resultado.setPromptText("Os resultados das analises aparecem aqui.");
+        resultado.setStyle("-fx-font-family: Consolas; -fx-font-size: 13px;");
+        resultado.setPromptText("O teste de mesa e o resultado do algoritmo aparecem aqui.");
 
         VBox painel = new VBox(
-                14,
+                9,
                 titulo,
                 explicacao,
                 abrirArquivo,
@@ -204,10 +219,27 @@ public class GrafoApp extends Application {
         Label titulo = new Label("Representacao do grafo");
         titulo.setFont(Font.font("Arial", FontWeight.BOLD, 17));
 
-        Label explicacao = new Label("Grafo nao orientado. Execute um algoritmo para visualizar seu resultado.\n" +
-                "Arraste os circulos para organizar.");
+        Label explicacao = new Label("Escolha um algoritmo e avance em Proxima etapa. Arraste os vertices para organizar.\n"
+                + "Anel laranja = atual; anel roxo = vizinho; linha laranja = ligacao analisada.\n"
+                + "Articulacao: azul claro = visitado; borda vermelha = articulacao confirmada.\n"
+                + "Coloracao: branco = ainda sem cor; preenchimento e numero = cor atribuida.");
         explicacao.setWrapText(true);
         explicacao.setTextFill(Color.web("#64748b"));
+
+        proximaEtapa = new Button("Proxima etapa >");
+        proximaEtapa.setDisable(true);
+        proximaEtapa.setStyle("-fx-background-color: #2563eb; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 9 14;");
+        proximaEtapa.setOnAction(event -> avancarEtapa());
+        reiniciarEtapas = new Button("Reiniciar passos");
+        reiniciarEtapas.setDisable(true);
+        reiniciarEtapas.setOnAction(event -> { indiceEtapa = -1; avancarEtapa(); });
+        contadorEtapas = new Label("Nenhuma execucao iniciada");
+        HBox controles = new HBox(10, proximaEtapa, reiniciarEtapas, contadorEtapas);
+        controles.setAlignment(Pos.CENTER_LEFT);
+        explicacaoEtapa = new Label("Escolha Pontos de articulacao ou Coloracao para comecar.");
+        explicacaoEtapa.setWrapText(true);
+        explicacaoEtapa.setMinHeight(78);
+        explicacaoEtapa.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #1e3a5f;");
 
         areaGrafo = new Pane();
         areaGrafo.setMinHeight(260);
@@ -226,11 +258,12 @@ public class GrafoApp extends Application {
         listaAdjacencia = new ListView<>();
         listaAdjacencia.setPlaceholder(new Label("Abra um arquivo TXT para exibir o grafo."));
         listaAdjacencia.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 15px;");
-        listaAdjacencia.setPrefHeight(170);
+        listaAdjacencia.setPrefHeight(110);
+        listaAdjacencia.setMinHeight(60);
 
         VBox.setVgrow(areaGrafo, Priority.ALWAYS);
 
-        VBox painel = new VBox(7, titulo, explicacao, areaGrafo, tituloLista, listaAdjacencia);
+        VBox painel = new VBox(7, titulo, explicacao, controles, explicacaoEtapa, areaGrafo, tituloLista, listaAdjacencia);
         painel.setPadding(new Insets(20));
         painel.setStyle(
                 "-fx-background-color: white;" +
@@ -276,6 +309,7 @@ public class GrafoApp extends Application {
 
     private void carregarArquivo(File arquivo) {
 
+        limparVisualizacao();
         mostrarArticulacao = false;
         coresVertices.clear();
         try {
@@ -341,6 +375,50 @@ public class GrafoApp extends Application {
         mostrarArticulacao = false;
         coresVertices.clear();
         resultado.clear();
+        etapas.clear();
+        indiceEtapa = -1;
+        etapaAtual = null;
+        resumoFinal = "";
+        proximaEtapa.setDisable(true);
+        reiniciarEtapas.setDisable(true);
+        contadorEtapas.setText("Nenhuma execucao iniciada");
+        explicacaoEtapa.setText("Escolha um algoritmo para comecar.");
+        desenharGrafo();
+    }
+
+    private void iniciarEtapas(ArrayList<EtapaAlgoritmo> novasEtapas, String resumo) {
+        etapas = novasEtapas;
+        resumoFinal = resumo;
+        indiceEtapa = -1;
+        reiniciarEtapas.setDisable(etapas.isEmpty());
+        avancarEtapa();
+    }
+
+    private void avancarEtapa() {
+        if (indiceEtapa + 1 >= etapas.size()) return;
+        indiceEtapa++;
+        etapaAtual = etapas.get(indiceEtapa);
+        //mostra a copia daquele momento, nunca os valores de uma etapa futura
+        etapaAtual.aplicar(lista, coresVertices);
+        mostrarArticulacao = etapaAtual.isArticulacao();
+        boolean terminou = indiceEtapa == etapas.size() - 1;
+        String titulo = (mostrarArticulacao ? "ARTICULACAO" : "COLORACAO")
+                + " - Etapa " + (indiceEtapa + 1) + " de " + etapas.size();
+        contadorEtapas.setText((indiceEtapa + 1) + " / " + etapas.size());
+        explicacaoEtapa.setText(etapaAtual.getExplicacao());
+        StringBuilder texto = new StringBuilder(titulo + "\n\n" + etapaAtual.getExplicacao()
+                + "\n\n" + etapaAtual.getTabela());
+        if (terminou) texto.append("\nRESULTADO FINAL\n").append(resumoFinal);
+        texto.append("\nHISTORICO ATE AQUI\n");
+        for (int i = 0; i <= indiceEtapa; i++) {
+            texto.append(i + 1).append(") ").append(etapas.get(i).getExplicacao()).append("\n\n");
+        }
+        resultado.setText(texto.toString());
+        resultado.positionCaret(0);
+        resultado.setScrollTop(0);
+        proximaEtapa.setDisable(terminou);
+        mensagem.setText(terminou ? "Execucao concluida. Reinicie os passos ou escolha outro algoritmo."
+                : "Execucao pausada. Clique em Proxima etapa para continuar.");
         desenharGrafo();
     }
 
@@ -375,9 +453,8 @@ public class GrafoApp extends Application {
                 }
             }
             if (pontos.isEmpty()) pontos = "Nenhum";
-            resultado.setText("Pontos: " + pontos + "\n\nOrdem da DFS:\n" + ordem + "\n\n" + tabela);
-            mensagem.setText("Analise concluida. Borda vermelha = ponto de articulacao.");
-            desenharGrafo();
+            iniciarEtapas(algoritmo.getEtapas(), "Pontos: " + pontos
+                    + "\n\nOrdem da DFS:\n" + ordem + "\n\n" + tabela);
         } catch (IllegalArgumentException erro) {
             resultado.setText(erro.getMessage());
             mensagem.setText("Confira o arquivo antes de executar a analise.");
@@ -413,9 +490,7 @@ public class GrafoApp extends Application {
             texto = texto + "\nTotal de cores utilizadas: " + grupos.size();
 
 
-            resultado.setText(texto);
-            mensagem.setText("Coloracao concluida. Cada numero identifica uma cor.");
-            desenharGrafo();
+            iniciarEtapas(algoritmo.getEtapas(), texto);
 
         } catch (IllegalArgumentException erro) {
             resultado.setText(erro.getMessage());
@@ -435,7 +510,8 @@ public class GrafoApp extends Application {
         double altura = Math.max(areaGrafo.getHeight(), 260);
         double centroX = largura / 2;
         double centroY = altura / 2;
-        double raio = Math.min(largura, altura) * 0.35;
+        double raioX = largura * 0.35;
+        double raioY = altura * 0.30;
         int quantidade = lista.getVertices().size();
 
         for (int i = 0; i < quantidade; i++) {
@@ -444,8 +520,8 @@ public class GrafoApp extends Application {
 
             if (!posicoes.containsKey(vertice.getRotulo())) {
                 double angulo = (2 * Math.PI * i / quantidade) - Math.PI / 2;
-                double x = centroX + Math.cos(angulo) * raio;
-                double y = centroY + Math.sin(angulo) * raio;
+                double x = centroX + Math.cos(angulo) * raioX;
+                double y = centroY + Math.sin(angulo) * raioY;
                 posicoes.put(vertice.getRotulo(), new Point2D(x, y));
             }
         }
@@ -470,7 +546,8 @@ public class GrafoApp extends Application {
             while (aresta != null) {
 
                 Point2D pontoOrigem = posicoes.get(origem.getRotulo());
-                Point2D pontoDestino = posicoes.get(aresta.getDestino());
+                Vertice destino = lista.buscarVertice(aresta.getDestino());
+                Point2D pontoDestino = destino == null ? null : posicoes.get(destino.getRotulo());
 
                 String primeiro = origem.getRotulo().toLowerCase();
                 String segundo = aresta.getDestino().toLowerCase();
@@ -491,6 +568,14 @@ public class GrafoApp extends Application {
                     );
                     linha.setStroke(Color.web("#64748b"));
                     linha.setStrokeWidth(2.2);
+                    if (etapaAtual != null && etapaAtual.getAtual() != null && etapaAtual.getVizinho() != null
+                            && ((origem.getRotulo().equalsIgnoreCase(etapaAtual.getAtual())
+                            && aresta.getDestino().equalsIgnoreCase(etapaAtual.getVizinho()))
+                            || (origem.getRotulo().equalsIgnoreCase(etapaAtual.getVizinho())
+                            && aresta.getDestino().equalsIgnoreCase(etapaAtual.getAtual())))) {
+                        linha.setStroke(Color.web("#ea580c"));
+                        linha.setStrokeWidth(5);
+                    }
                     areaGrafo.getChildren().add(linha);
                     arestasDesenhadas.add(chave);
                 }
@@ -520,8 +605,26 @@ public class GrafoApp extends Application {
 
         Group grupo = new Group(circulo, rotulo);
 
+        if (etapaAtual != null && (vertice.getRotulo().equals(etapaAtual.getAtual())
+                || vertice.getRotulo().equals(etapaAtual.getVizinho()))) {
+            boolean atual = vertice.getRotulo().equals(etapaAtual.getAtual());
+            Circle destaque = new Circle(28, Color.TRANSPARENT);
+            destaque.setStroke(Color.web(atual ? "#ea580c" : "#9333ea"));
+            destaque.setStrokeWidth(3);
+            destaque.setMouseTransparent(true);
+            grupo.getChildren().add(destaque);
+            Text papel = new Text(atual ? "ATUAL" : "VIZINHO");
+            papel.setFont(Font.font("Arial", FontWeight.BOLD, 11));
+            papel.setFill(destaque.getStroke());
+            papel.setX(-papel.getLayoutBounds().getWidth() / 2);
+            papel.setY(-34);
+            papel.setMouseTransparent(true);
+            grupo.getChildren().add(papel);
+        }
+
         if (mostrarArticulacao && vertice.isVisitado()) {
-            Text dados = new Text("pre: " + vertice.getPrenum() + " | menor: " + vertice.getMenor());
+            Text dados = new Text("pre: " + vertice.getPrenum() + " | menor: " + vertice.getMenor()
+                    + "\npai: " + (vertice.getPai() == null ? "-" : vertice.getPai().getRotulo()));
             dados.setFont(Font.font("Arial", 11));
             dados.setX(-dados.getLayoutBounds().getWidth() / 2);
             dados.setY(38);
@@ -568,6 +671,8 @@ public class GrafoApp extends Application {
         if (mostrarArticulacao && vertice.isArticulacao()) {
             return Color.web("#fed7aa");
         }
+
+        if (mostrarArticulacao && vertice.isVisitado()) return Color.web("#dbeafe");
 
         return Color.WHITE;
     }
